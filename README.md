@@ -1,5 +1,5 @@
 # DCRB2
-Implementation of a BST with posting lists for leaf nodes.
+GH repository for project delivery DCRB2 part 2
 
 # HOW TO RUN THE PROGRAM
 Configure your DBMS using the script to build the DB in the DCRB1 repository.
