@@ -1,99 +1,59 @@
 #!/usr/bin/python3
 
-################################################
-########### Vito Giacalone (546646) ############
-####### Digital content retrival project #######
-################################################
-
-################################################
-############# Preprocessing texts ##############
-################################################
-
-################################################
-################# Libraries ####################
-################################################
-
 import mysql.connector
 import nltk
 from bs4 import BeautifulSoup
 import re
 import porter
 import math
+from mpi4py import MPI
+import os
 
-############ Database connection ###############
+#######################################################################################################################
 
-def connect_db(host, user, pwd, db, auth):
-    db_connection = mysql.connector.connect(
-        host=host, 
-        user=user, 
-        password=pwd, 
-        database=db, 
-        auth_plugin=auth
-    )
-    return db_connection
+def check_directories(path_list):
+    for path in path_list:
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-############################### Reading the texts from the database #################################
-# Reading of the corpus associated to each ID in the file used for reading
-# From each corpus all the html tags are removed
-# In the file "docs.txt" are stored the ID of each document and the corpus
-#####################################################################################################
+#######################################################################################################################
 
-def read_data(filename, MAX_BATCH_SIZE, host, user, pwd, db, auth):
+## each core -> reads a document and writes in an output file the pairs [doc_ID: posting_list]
 
-    db_conn = connect_db(host, user, pwd, db, auth)
-    db_cursor = db_conn.cursor()
+#devo togliere il filename in input, leggere da una cartella speicifica tutti i documenti. Filename in realtà deve diventare una lista di file
+#per ogni file nella lista leggo e scrivo.
 
-    query_retrieval = """SELECT file_info.ID, file_info.Txt
-                         FROM file_info
-                         WHERE file_info.ID = %s"""
-    IDs = []
-    out = []
-    fout = open("docs.txt", "w")
+#######################################################################################################################
 
-    with open(filename) as f:
-        for line in f:
-            elements = line.split("\t")
-            if elements[2] == "html" and len(IDs) < MAX_BATCH_SIZE:
-                IDs.append((elements[0],))  # Tuple containing the ID
+def read_data(filename_list, rank, elements):
 
-            if len(IDs) == MAX_BATCH_SIZE:
-                for id_tuple in IDs:
-                    db_cursor.execute(query_retrieval, id_tuple)
-                    out.append(db_cursor.fetchone())
-                for record in out:
-                    print("%d\t%s"%(int(record[0]), clean_html_reverse_posting_lists(record[1])), file=fout)
-                IDs = []
-                out = []
+    out_path = "./Documents/docs_"+str(rank)+".txt"
+    map_path = "./Documents/mapping_"+str(rank)+".txt"
+
+    fout = open(out_path, "w")    # assegno l'id al documento. Leggo il documento e lo pulisco da caratteri speciali ecc...
+    fmap = open(map_path, "w")    # lookup table ID-DOCUMENT
+    ID = rank*elements                                     #ID incrementale per documento
+    for file in filename_list:
+        with open(file) as f:
+            txt = f.read()
+            print("%d\t%s"%(ID, clean_document(txt)), file=fout)
+            print("%d\t%s"%(ID, file), file=fmap)
+        ID+=1                                   #ID da modificare come ((rank * size lista)  + incremento)
+
+    fout.close()
+    fmap.close()
+
+#######################################################################################################################
+
+def create_postlist(filename_in, stopwords, dic):
     
-    if IDs:
-        for id_tuple in IDs:
-            db_cursor.execute(query_retrieval, id_tuple)
-            tup = db_cursor.fetchone()
-            line = tup[1].replace("\n", " ")
-            out.append((tup[0], line))
-
-        for record in out:
-            print("%d\t%s"%(int(record[0]), clean_html_reverse_posting_lists(record[1])), file=fout)
-    db_conn.close()
-
-
-############################### Create posting lists from documents #################################
-# Read a document with some stopwords
-# Read a pair: ID-Corpus and produce a pair ID-LIST_OF_WORDS
-# Short words are typically stopwords, so I remove these words from the set of relevant words
-# For each relevant word in the document, the stemming is performed. The stemming produce a list
-# of words used in the next phase to help the searching, insertion, deletion operations.
-# Create the posting lists -> produce a pair: WORD:LIST_OF_DOC_IDS
-# Save the stemmed words in a file, save the posting lists
-#####################################################################################################
-
-def create_postlist(filename_in, filename_out, stopwords, stem):
-    fstem = open(stem, "a")
-    fout = open(filename_out, "w")
-    fsw = open(stopwords, "r")
-    stopwords_list = fsw.read().split()  # Leggi le stopwords e dividile in una lista
-    fsw.close()
-    pl = {}
+    try:
+        fsw = open(stopwords, "r")
+        stopwords_list = fsw.read().split()  # Leggi le stopwords e dividile in una lista
+        fsw.close()
+    except Exception as e:
+        stopwords_list = []
+        
     with open(filename_in, "r") as f:
         for line in f:
             line = line.strip()
@@ -102,31 +62,35 @@ def create_postlist(filename_in, filename_out, stopwords, stem):
             line = line.split('\t')
             if len(line) < 2:
                 continue  # Salta le righe che non hanno almeno due elementi
-            key = line[0]
+            key = int(line[0])
             words = line[1].split(" ")
-            words = [w for w in words if (len(w) > 3 and w not in stopwords_list)]
+            words = [w for w in words if (len(w) > 3 and w not in stopwords_list)]    
+
             for word in words:
                 word = word.lower()
                 try:
-                    pl[word].add(key)
+                    dic[word].add(key)      #usa timsort -> mix tra insertion sort e merge sort, best case n if there's an implicit ordering
                 except KeyError:
-                    pl[word] = set()
-                    pl[word].add(key)
-    for word in pl:
-        stemlist = porter.stem(word)
-        print(stemlist, file=fstem)
-        print(word, file=fout)
-        for id in sorted(pl[word]):
-            print(id, file=fout)
-    fstem.close()
-    fout.close()
- 
+                    dic[word] = set()
+                    dic[word].add(key)
+    return dic
 
-############################ Clean the input file from all small words ##############################
-# This function cleans the input file from all the words whose length is greater than the average 
-# length of the words + 2 (It's an empirical rule in order to obtain the words that will guide
-# the searching, insertion, deletion operations)
-#####################################################################################################
+#######################################################################################################################
+
+def save_inverted_index(dic, filename_out, stem):
+    try:
+        with open(stem, "w") as fstem, open(filename_out, "w") as fout:
+            for word in dic:
+                stemlist = porter.stem(word)
+                print(stemlist, file=fstem)
+                print(word, file=fout)
+                sorted_ids = sorted(dic[word])  # Ordina i valori (ID) per ogni parola
+                for id in sorted_ids:
+                    print(id, file=fout)
+    except Exception as e:
+        return
+
+#######################################################################################################################
 
 def clean_words_average_length(filename, filename_out):
     total = 0
@@ -147,13 +111,9 @@ def clean_words_average_length(filename, filename_out):
             print(w, file=fout)
     fout.close()
 
-################################ Clean the corpus containing tags ###################################
-# This function removes the html tags, LaTeX tags (thanks to the regex) and non-alphanumerical
-# characters. Furthermore it removes numbers. It takes into account the quotations and the words
-# separated by dash
-#####################################################################################################
+#######################################################################################################################
 
-def clean_html_reverse_posting_lists(html_string):
+def clean_document(txt_document):
     # Definisci i caratteri da rimuovere
     remove_list = "$,./\\*+€&!?ì^=)(%£@ç°#§:;)" #### tengo i simboli: - e ""
     
@@ -163,7 +123,7 @@ def clean_html_reverse_posting_lists(html_string):
     pattern_numbers = r'\d+'
 
     # Usa BeautifulSoup per rimuovere i tag HTML
-    soup = BeautifulSoup(html_string, "html.parser")
+    soup = BeautifulSoup(txt_document, "html.parser")
     raw = soup.get_text(" ")
     clean_text = raw
     # Rimuovi i tag LaTeX
@@ -180,9 +140,65 @@ def clean_html_reverse_posting_lists(html_string):
     clean_text = re.sub(pattern_numbers, ' ', clean_text)
     return clean_text
 
-#####################################################################################################
-############################################# Main ##################################################
+######################################################## MAIN #########################################################
 
-read_data("out.txt", 10, "localhost", "root", "GCLVTI99P27F061Y", "dcr", "mysql_native_password")
-create_postlist("docs.txt", "postings.txt", "stopwords.txt", "stemwords.txt")
-clean_words_average_length("stemwords.txt", "average_stemwords.txt")
+#### EACH PROCESS TAKES IT'S RANK
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+files_per_process = 0
+
+if rank == 0:   #if i'm the master process
+
+    # Create all the necessary directories
+    dirs = ["./Documents/", "./Preprocess/", "./InvertedIndex/"]
+    check_directories(dirs)
+
+    # read all the paths of the txt files
+    file_list=[]
+    for root, _, filenames in os.walk("./movieReview"):
+        for file in filenames:
+            if file.endswith(".txt"):
+                file_list.append(os.path.join(root, file))
+    file_list = [file for file in file_list if(file.endswith(".txt"))]
+
+    files_per_process = len(file_list)//size;
+    remaining_files = len(file_list)%size;
+
+    for c in range(1, size):
+        if c != size-1:
+            files = file_list[c*files_per_process: (c+1)*files_per_process]
+            comm.send(files, dest=c, tag=100)
+        else:
+            files = file_list[c*files_per_process: (c+1)*files_per_process] + file_list[(c+1)*files_per_process:]
+            comm.send(files, dest=c, tag=100)
+
+    files = file_list[0:files_per_process]
+    del file_list
+
+    print(rank, len(files))
+
+else:
+    files = comm.recv(source=0, tag=100)
+    print(rank, len(files))
+
+
+elements = comm.bcast(files_per_process, root=0)    ## receive the integer division between total number of files/numer of processes
+print(elements)
+
+
+
+##################### il master deve mandare a tutti gli altri la lista di file su cui operare, dopodichè gli slave eseguono il calcolo
+
+read_data(files, rank, elements)
+read_doc_path = "./Documents/docs_" + str(rank) + ".txt"
+stopwords_path = "./Preprocess/stopwords.txt"
+inverted_index_path = "./InvertedIndex/inverted_idx_"+ str(rank) +".txt"
+stemwords_path = "./Preprocess/stemwords_"+ str(rank) +".txt"
+
+dic = {}
+dic = create_postlist(read_doc_path, stopwords_path, dic)
+
+save_inverted_index(dic, inverted_index_path, stemwords_path)
+# # clean_words_average_length("stemwords.txt", "average_stemwords.txt")
