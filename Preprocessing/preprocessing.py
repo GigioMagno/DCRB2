@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import mysql.connector
 import nltk
 from bs4 import BeautifulSoup
 import re
@@ -25,14 +24,22 @@ def check_directories(path_list):
 
 #######################################################################################################################
 
-def read_data(filename_list, rank, elements):
-
+def read_data(filename_list, rank, elements, cores, extras):
+#rank*(elements+1)-extras + (cores-rank)
     out_path = "./Documents/docs_"+str(rank)+".txt"
     map_path = "./Documents/mapping_"+str(rank)+".txt"
 
     fout = open(out_path, "w")    # assegno l'id al documento. Leggo il documento e lo pulisco da caratteri speciali ecc...
     fmap = open(map_path, "w")    # lookup table ID-DOCUMENT
-    ID = rank*elements                                     #ID incrementale per documento
+    
+    if rank < extras:
+        ID = rank * (elements + 1)
+    else:
+        ID = extras * (elements + 1) + (rank - extras) * elements
+
+        #ID=rank*(elements+1)-extras+(cores-rank)
+
+                                     #ID incrementale per documento
     for file in filename_list:
         with open(file) as f:
             txt = f.read()
@@ -142,12 +149,20 @@ def clean_document(txt_document):
 
 ######################################################## MAIN #########################################################
 
+# dataset_path = "./movieReview"
+
+# MPI.Init()
+
 #### EACH PROCESS TAKES IT'S RANK
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
+dataset_path = "./Dataset/split/"
+
 files_per_process = 0
+remaining_files = 0
+file_list=[]
 
 if rank == 0:   #if i'm the master process
 
@@ -156,8 +171,7 @@ if rank == 0:   #if i'm the master process
     check_directories(dirs)
 
     # read all the paths of the txt files
-    file_list=[]
-    for root, _, filenames in os.walk("./movieReview"):
+    for root, _, filenames in os.walk(dataset_path):
         for file in filenames:
             if file.endswith(".txt"):
                 file_list.append(os.path.join(root, file))
@@ -165,40 +179,45 @@ if rank == 0:   #if i'm the master process
 
     files_per_process = len(file_list)//size;
     remaining_files = len(file_list)%size;
-
     for c in range(1, size):
-        if c != size-1:
-            files = file_list[c*files_per_process: (c+1)*files_per_process]
-            comm.send(files, dest=c, tag=100)
-        else:
-            files = file_list[c*files_per_process: (c+1)*files_per_process] + file_list[(c+1)*files_per_process:]
-            comm.send(files, dest=c, tag=100)
+        files = file_list[c*files_per_process: (c+1)*files_per_process]
+        comm.send(files, dest=c, tag=100)
 
     files = file_list[0:files_per_process]
-    del file_list
-
-    print(rank, len(files))
-
 else:
     files = comm.recv(source=0, tag=100)
-    print(rank, len(files))
-
 
 elements = comm.bcast(files_per_process, root=0)    ## receive the integer division between total number of files/numer of processes
-print(elements)
+extras = comm.bcast(remaining_files, root=0)
 
+
+
+if rank == 0 and extras != 0:
+    extra_elements = file_list[-extras:]  # Ottieni gli ultimi file rimanenti
+    files.append(extra_elements[0])
+    for x in range(1, extras):
+        comm.send(extra_elements[x - 1], dest=x, tag=101)
+elif rank < extras and rank != 0:
+    extra_file = comm.recv(source=0, tag=101)
+    files.append(extra_file)
+
+del file_list
 
 
 ##################### il master deve mandare a tutti gli altri la lista di file su cui operare, dopodichè gli slave eseguono il calcolo
-
-read_data(files, rank, elements)
+#filename_list, rank, elements, cores, extras
+read_data(files, rank, elements, size, extras)
 read_doc_path = "./Documents/docs_" + str(rank) + ".txt"
 stopwords_path = "./Preprocess/stopwords.txt"
 inverted_index_path = "./InvertedIndex/inverted_idx_"+ str(rank) +".txt"
 stemwords_path = "./Preprocess/stemwords_"+ str(rank) +".txt"
 
+
+
 dic = {}
 dic = create_postlist(read_doc_path, stopwords_path, dic)
 
 save_inverted_index(dic, inverted_index_path, stemwords_path)
+
+MPI.Finalize()
 # # clean_words_average_length("stemwords.txt", "average_stemwords.txt")
