@@ -2,107 +2,77 @@
 
 #include <stdio.h>
 #include "bstree.h"
-
-#define SIZE 80
-
-//////////////////////// Create Nodes \\\\\\\\\\\\\\\\\\\\\\\\\\\
-// This function creates all the nodes to insert in the BST
-// The Searchkeys are read from a file and also the posting lists
-// The function returns an array of nodes
-
-node *create_nodes_bst(char *filename, int *len);
-node *create_nodes_bst(char *filename, int *len) {
-    char buf[SIZE]; 
-    int capacity = SIZE;
-    *len = 0;
-
-    node *node_set = (node *)malloc(sizeof(node) * capacity);
-    if (node_set == NULL) {
-        printf("Error file opening\n");
-        return NULL;
-    }
-
-    FILE *f = fopen(filename, "r");
-    if (f == NULL) {
-        printf("Error file opening\n");
-        free(node_set);
-        return NULL;
-    }
-
-    while (fgets(buf, sizeof(buf), f)) {
-        size_t len_buf = strlen(buf);
-        if (buf[len_buf - 1] == '\n') {
-            buf[len_buf - 1] = '\0';
-        }
-
-        if (atoll(buf) == 0) {
-            if (*len >= capacity) {
-                capacity *= 2;
-                node *temp = realloc(node_set, capacity * sizeof(node));
-                if (temp == NULL) {
-                    printf("Not enough memory for realloc\n");
-                    free(node_set);
-                    fclose(f);
-                    return NULL;
-                }
-                node_set = temp;
-            }
-
-            node_set[*len] = *create_node(buf);
-            node_set[*len].posting = NULL;
-            (*len)++;
-        } else {
-            if (*len > 0) {
-                add_id(&(node_set[*len - 1].posting), atoll(buf));
-            } else {
-                printf("ID ERROR: NO PAIR (ID-WORD)\n");
-                free(node_set);
-                fclose(f);
-                return NULL;
-            }
-        }
-    }
-
-    fclose(f);
-
-    node *final_set = realloc(node_set, (*len) * sizeof(node));
-    if (final_set == NULL && *len > 0) {
-        printf("Not enough memory for realloc\n");
-        //free(node_set);
-        return NULL;
-    }
-
-    return final_set;
-}
-
+#include "mpi.h"
+#include <limits.h>
 
 //////////////////////// MAIN \\\\\\\\\\\\\\\\\\\\\\\\\\\
 
-int main() {
-    FILE *f = fopen("finale.txt", "w");
-    FILE *fstem = fopen("stemwords.txt", "r");
-    node *root = NULL;
-    int words = 0;
-    node *node_set = create_nodes_bst("postings.txt", &words);
-    char buf[SIZE];
+int main(int argc, char *argv[]) {
+    int size, rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    int words = 0;
+
+    // Costruzione dei percorsi per i file
+    char path_ix[] = "/Users/svitol/Desktop/DCRBproject/binary_tree/Preprocessing/InvertedIndex/inverted_idx_";
+    char path_sw[] = "/Users/svitol/Desktop/DCRBproject/binary_tree/Preprocessing/Preprocess/stemwords_";
+    char path_dest_tree[] = "/Users/svitol/Desktop/DCRBproject/binary_tree/output/bst_";
+    char path_debug[] = "/Users/svitol/Desktop/DCRBproject/binary_tree/output/debug_";
+    char ext[] = ".txt";
+    char complete_path_ix[NAME_MAX];
+    char complete_path_sw[NAME_MAX];
+    char complete_path_bst[NAME_MAX];
+    char complete_path_debug[NAME_MAX];
+    sprintf(complete_path_ix, "%s%d%s", path_ix, rank, ext);
+    sprintf(complete_path_sw, "%s%d%s", path_sw, rank, ext);
+    sprintf(complete_path_bst, "%s%d%s", path_dest_tree, rank, ext);
+    sprintf(complete_path_debug, "%s%d%s", path_debug, rank, ext);
+
+
+    // Apertura dei file
+    FILE *fstem = fopen(complete_path_sw, "r");
+    FILE *f = fopen(complete_path_bst, "w");
+    if (fstem == NULL || f == NULL) {
+        perror("Errore nell'apertura dei file");
+        MPI_Finalize();
+        return EXIT_FAILURE;
+    }
+
+    // Costruzione dell'albero binario di ricerca
+    node *root = NULL;
+    char buf[SIZE];
     while (fgets(buf, sizeof(buf), fstem)) {
         size_t len_buf = strlen(buf);
-        if (buf[len_buf - 1] == '\n') {
+        if (len_buf > 0 && buf[len_buf - 1] == '\n') {
             buf[len_buf - 1] = '\0';
         }
         safe_recursive_add_node(&root, create_node(buf));
     }
+    fclose(fstem);
+
+    node *node_set = build_bst(complete_path_ix, &words);
+
+    FILE *fdeg = fopen(complete_path_debug, "w");
+    for (int i = 0; i < words; ++i)
+    {
+        fprintf(fdeg, "%s\n", node_set[i].searchKey);
+    }
+
+    fclose(fdeg);
 
     for (int i = 0; i < words; ++i) {
         safe_recursive_add_node(&root, &node_set[i]);
     }
-    printf("albero ok\n");
 
-    safe_recursive_print_tree(root, f);
-    fclose(f);
-    fclose(fstem);
-    free(node_set);
-    return 0;
+    // Scrittura dell'albero su file
+   safe_recursive_print_tree(root, f);
+   fclose(f);
+
+    // // Libera la memoria allocata per l'albero
+    // safe_recursive_free_tree(root);
+
+    MPI_Finalize();
+    return EXIT_SUCCESS;
 }
-
