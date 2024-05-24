@@ -7,6 +7,8 @@
 #include "stack.h"
 #include "posting_list.h"
 
+#define SIZE 80
+
 struct node {
     char *searchKey;
     struct node *left;
@@ -24,5 +26,6 @@ void print_tree(node *root, FILE *f);
 node *get_minimum(node **root);
 node *get_maximum(node **root);
 void delete_node(node **root, char* searchKey);
+node *build_bst(char *filename, int *len);
 
 #endif
