@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import nltk
 from bs4 import BeautifulSoup
 import re
 import porter
@@ -33,9 +32,9 @@ def read_data(filename_list, rank, elements, cores, extras):
     fmap = open(map_path, "w")    # lookup table ID-DOCUMENT
     
     if rank < extras:
-        ID = rank * (elements + 1)
+        ID = rank * (elements + 1) + 1
     else:
-        ID = extras * (elements + 1) + (rank - extras) * elements
+        ID = extras * (elements + 1) + (rank - extras) * elements + 1
 
         #ID=rank*(elements+1)-extras+(cores-rank)
 
@@ -141,7 +140,8 @@ def clean_document(txt_document):
         clean_text = clean_text.replace(char, " ")
     
     # Rimuovi eventuali spazi multipli e caratteri non alfanumerici
-    clean_text = re.sub(r'[^a-zA-Z0-9\s]', ' ', clean_text)
+    #[^a-zA-Z0-9\s]
+    clean_text = re.sub(r'[^a-zA-Z\s]', ' ', clean_text)
     clean_text = re.sub(r'\s+', ' ', clean_text)
     
     clean_text = re.sub(pattern_numbers, ' ', clean_text)
