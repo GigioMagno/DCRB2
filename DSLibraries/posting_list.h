@@ -3,16 +3,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 
 struct list {
-    long long int doc_ID;
+    int doc_ID;
     struct list *next;
 };
 
 typedef struct list list;
 
-void add_id(list **l, long long int ID);
-void print_list(const list *l, FILE *fdest);
+void add_id(list **l, int ID);
+void print_list(list *l, FILE *fdest);
+void print_list2(list *l, FILE *fdest, int *result_set);
 void free_list(list *l);
+char **map_ids(char *path, int *num, int *key);
 
 #endif

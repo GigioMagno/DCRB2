@@ -27,5 +27,6 @@ node *get_minimum(node **root);
 node *get_maximum(node **root);
 void delete_node(node **root, char* searchKey);
 node *build_bst(char *filename, int *len);
+node* get_node(node *root, char *searchKey);
 
 #endif
