@@ -40,7 +40,7 @@ def read_data(filename_list, rank, elements, cores, extras):
 
                                      #ID incrementale per documento
     for file in filename_list:
-        with open(file) as f:
+        with open(file, "r") as f:
             txt = f.read()
             print("%d\t%s"%(ID, clean_document(txt)), file=fout)
             print("%d\t%s"%(ID, file), file=fmap)
@@ -70,7 +70,7 @@ def create_postlist(filename_in, stopwords, dic):
                 continue  # Salta le righe che non hanno almeno due elementi
             key = int(line[0])
             words = line[1].split(" ")
-            words = [w for w in words if (len(w) > 3 and w not in stopwords_list)]    
+            words = [w for w in words if (w not in stopwords_list)]    
 
             for word in words:
                 word = word.lower()
@@ -149,8 +149,6 @@ def clean_document(txt_document):
 
 ######################################################## MAIN #########################################################
 
-# dataset_path = "./movieReview"
-
 # MPI.Init()
 
 #### EACH PROCESS TAKES IT'S RANK
@@ -158,7 +156,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-dataset_path = "./Dataset/split/"
+dataset_path = "./Dataset/"
 
 files_per_process = 0
 remaining_files = 0
@@ -167,7 +165,7 @@ file_list=[]
 if rank == 0:   #if i'm the master process
 
     # Create all the necessary directories
-    dirs = ["./Documents/", "./Preprocess/", "./InvertedIndex/"]
+    dirs = ["./Documents/", "./Preprocess/", "./InvertedIndex/", "./../output/BST/", "./../output/Results/"]
     check_directories(dirs)
 
     # read all the paths of the txt files
@@ -205,7 +203,6 @@ del file_list
 
 
 ##################### il master deve mandare a tutti gli altri la lista di file su cui operare, dopodichè gli slave eseguono il calcolo
-#filename_list, rank, elements, cores, extras
 read_data(files, rank, elements, size, extras)
 read_doc_path = "./Documents/docs_" + str(rank) + ".txt"
 stopwords_path = "./Preprocess/stopwords.txt"
