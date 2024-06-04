@@ -1,5 +1,25 @@
 #include "enquiry.h"
 
+
+void print_doc(char**map, int maplen, int IDsearch);
+void print_doc(char**map, int maplen, int IDsearch){
+
+    char path[NAME_MAX];
+    int id;
+
+    for (int i = 0; i < maplen; ++i)
+    {
+        sscanf(map[i], "%d\t%s", &id, path);
+        if (id == IDsearch)
+        {
+            //printf("AAAAAAAA CI SONO\n");
+            printf("%s\n", path);
+        }
+    }
+
+}
+
+
 // Function to convert a string to lowercase
 void lower_string(char *input) {
     int len = strlen(input); // Get the length of the input string
@@ -33,7 +53,9 @@ void conjunctive_query(node *root, char **map, int key, char **searchKeys, int n
         }
 
         if (min_doc_ID == max_doc_ID) {
-            print_document(map, min_doc_ID, key, rank);
+            // printf("ID DOCUMENTO %d\n", min_doc_ID);
+            print_doc(map, key, min_doc_ID);
+            //print_document(map, min_doc_ID, key, rank);
             for (int i = 0; i < num_keys; i++) {
                 posting_lists[i] = posting_lists[i]->next;
                 if (posting_lists[i] == NULL) return;
@@ -72,7 +94,9 @@ void disjunctive_query(node *root, char **map, int key, char **searchKeys, int n
             }
         }
 
-        print_document(map, min_doc_ID, key, rank);
+        // printf("ID DOCUMENTO %d\n", min_doc_ID);
+        //print_document(map, min_doc_ID, key, rank);
+        print_doc(map, key, min_doc_ID);
 
         int num_finished_lists = 0;
         for (int i = 0; i < num_active_lists; i++) {

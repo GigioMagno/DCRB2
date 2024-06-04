@@ -16,6 +16,6 @@ void add_id(list **l, int ID);
 void print_list(list *l, FILE *fdest);
 void print_list2(list *l, FILE *fdest, int *result_set);
 void free_list(list *l);
-char **map_ids_from_paths(char **paths, int num_paths, int *total_num, int *key);
+char **map_ids_from_paths(char **id_paths, int num_id_paths, int *total_num, int *key);
 
 #endif
