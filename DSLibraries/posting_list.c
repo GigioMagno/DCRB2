@@ -82,44 +82,135 @@ void free_list(list *l) {
 // Read a file and create a mapping of IDs to names.
 // The function returns an array of strings containing the names,
 // and updates the number of elements and the key of the first element.
-char **map_ids(char *path, int *num, int *key) {
+// char **map_ids(char *path, int *num, int *key) {
+//     int elements = 8;  // Initial capacity for the map
+//     FILE *f = fopen(path, "r");  // Open the file for reading
+//     char buf[NAME_MAX + sizeof(long long int)];
+//     char **map = (char**)malloc(elements * sizeof(char*));  // Allocate memory for the map
+
+//     // Allocate memory for each string in the map
+//     for (int i = 0; i < elements; ++i) {
+//         map[i] = (char*)malloc(sizeof(char) * NAME_MAX);
+//     }
+
+//     int i = 0;  // Counter for the number of elements
+//     int id;  // Variable to hold the ID
+
+//     // Read the file line by line
+//     while (fgets(buf, NAME_MAX + sizeof(long long int), f)) {
+//         // Parse the line to extract the ID and the name
+//         sscanf(buf, "%d\t%s", &id, map[i]);
+//         i++;
+
+//         // Set the key to the first ID encountered
+//         if (i == 1) {
+//             *key = id;
+//         }
+
+//         // If the array is full, double its capacity
+//         if (i == elements) {
+//             elements *= 2;
+//             map = (char**)realloc(map, sizeof(char*) * elements);
+//             for (int j = 0; j < elements; ++j) {
+//                 map[j] = realloc(map[j], sizeof(char) * NAME_MAX);
+//             }
+//         }
+//     }
+
+//     // Update the number of elements
+//     *num = i;
+
+//     // Reallocate the map to fit the number of elements exactly
+//     return realloc(map, i * sizeof(char*));
+// }
+
+///////FUNZIONANTE
+
+// char **map_ids_from_paths(char **paths, int num_paths, int *total_num, int *key) {
+//     int elements = 8;  // Initial capacity for the map
+//     char buf[NAME_MAX + sizeof(long long int)];
+//     char **map = (char**)malloc(elements * sizeof(char*));
+
+//     // Allocate memory for each string in the map
+//     for (int i = 0; i < elements; ++i) {
+//         map[i] = (char*)malloc(NAME_MAX * sizeof(char));
+//     }
+
+//     int i = 0;  // Counter for the number of elements
+//     int id;  // Variable to hold the ID
+
+//     for (int p = 0; p < num_paths; ++p) {
+//         FILE *f = fopen(paths[p], "r");
+//         if (!f) {
+//             fprintf(stderr, "Error opening file: %s\n", paths[p]);
+//             continue;
+//         }
+
+//         while (fgets(buf, NAME_MAX + sizeof(long long int), f)) {
+//             sscanf(buf, "%d\t%s", &id, map[i]);
+//             if (i == 0) {
+//                 *key = id;
+//             }
+//             i++;
+//             if (i == elements) {
+//                 elements *= 2;
+//                 map = (char**)realloc(map, elements * sizeof(char*));
+//                 for (int j = elements / 2; j < elements; ++j) {
+//                     map[j] = (char*)malloc(NAME_MAX * sizeof(char));
+//                 }
+//             }
+//         }
+
+//         fclose(f);
+//     }
+
+//     *total_num = i;
+//     return (char**)realloc(map, i * sizeof(char*));
+// }
+
+
+
+
+
+char **map_ids_from_paths(char **paths, int num_paths, int *total_num, int *key) {
     int elements = 8;  // Initial capacity for the map
-    FILE *f = fopen(path, "r");  // Open the file for reading
     char buf[NAME_MAX + sizeof(long long int)];
-    char **map = (char**)malloc(elements * sizeof(char*));  // Allocate memory for the map
+    char **map = (char**)malloc(elements * sizeof(char*));
 
     // Allocate memory for each string in the map
     for (int i = 0; i < elements; ++i) {
-        map[i] = (char*)malloc(sizeof(char) * NAME_MAX);
+        map[i] = (char*)malloc(NAME_MAX * sizeof(char));
     }
 
     int i = 0;  // Counter for the number of elements
     int id;  // Variable to hold the ID
 
-    // Read the file line by line
-    while (fgets(buf, NAME_MAX + sizeof(long long int), f)) {
-        // Parse the line to extract the ID and the name
-        sscanf(buf, "%d\t%s", &id, map[i]);
-        i++;
-
-        // Set the key to the first ID encountered
-        if (i == 1) {
-            *key = id;
+    for (int p = 0; p < num_paths; ++p) {
+        FILE *f = fopen(paths[p], "r");
+        if (!f) {
+            fprintf(stderr, "Error opening file: %s\n", paths[p]);
+            continue;
         }
 
-        // If the array is full, double its capacity
-        if (i == elements) {
-            elements *= 2;
-            map = (char**)realloc(map, sizeof(char*) * elements);
-            for (int j = 0; j < elements; ++j) {
-                map[j] = realloc(map[j], sizeof(char) * NAME_MAX);
+        while (fgets(buf, NAME_MAX + sizeof(long long int), f)) {
+            sscanf(buf, "%d\t%s", &id, map[i]);
+            if (i == 0) {
+                *key = id;
+            }
+            i++;
+            if (i == elements) {
+                elements *= 2;
+                map = (char**)realloc(map, elements * sizeof(char*));
+                for (int j = elements / 2; j < elements; ++j) {
+                    map[j] = (char*)malloc(NAME_MAX * sizeof(char));
+                }
             }
         }
+
+        fclose(f);
     }
-
-    // Update the number of elements
-    *num = i;
-
-    // Reallocate the map to fit the number of elements exactly
-    return realloc(map, i * sizeof(char*));
+    *key = id - *key + 1;
+    printf("KEY:%d\n", *key);
+    *total_num = i;
+    return (char**)realloc(map, i * sizeof(char*));
 }

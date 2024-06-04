@@ -25,26 +25,21 @@ node *create_node(char *searchKey) {
 // Once the correct place to insert the node has been found, it adds the element.
 // If there's a duplicate, the posting list is updated.
 void safe_recursive_add_node(node **root, node *newnode) {
-    // If the root is NULL, set the new node as the root
     if (*root == NULL) {
         *root = newnode;
         return;
     }
 
-    // Initialize the stack to keep track of visited nodes
     record *stack = NULL;
     push(&stack, *root);
 
     while (!is_empty(stack)) {
-        // Pop a node from the stack to process
         record *current_record = pop(&stack);
         node *current = current_record->memaddr;
         free(current_record);
 
-        // Compare the new node's search key with the current node's search key
         int cmp = strcmp(newnode->searchKey, current->searchKey);
 
-        // If the new node's key is less, traverse the left subtree
         if (cmp < 0) {
             if (current->left == NULL) {
                 current->left = newnode;
@@ -52,18 +47,14 @@ void safe_recursive_add_node(node **root, node *newnode) {
             } else {
                 push(&stack, current->left);
             }
-        } 
-        // If the new node's key is greater, traverse the right subtree
-        else if (cmp > 0) {
+        } else if (cmp > 0) {
             if (current->right == NULL) {
                 current->right = newnode;
                 return;
             } else {
                 push(&stack, current->right);
             }
-        } 
-        // If the key is a duplicate, update the posting list
-        else {
+        } else {
             list *new_posting = newnode->posting;
             while (new_posting != NULL) {
                 add_id(&current->posting, new_posting->doc_ID);
