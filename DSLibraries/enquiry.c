@@ -28,22 +28,26 @@ void lower_string(char *input) {
     }
 }
 
-
 void conjunctive_query(node *root, char **map, int key, char **searchKeys, int num_keys, int rank) {
-    if (num_keys < 1) return;
+    if (num_keys < 1 || root == NULL || map == NULL || searchKeys == NULL) return;
 
     list *posting_lists[num_keys];
     for (int i = 0; i < num_keys; i++) {
+        if (searchKeys[i] == NULL) return;
         node *r = get_node(root, searchKeys[i]);
-        if (r == NULL) return;
+        if (r == NULL || r->posting == NULL) return;
         posting_lists[i] = r->posting;
     }
 
     while (1) {
+        if (posting_lists[0] == NULL) return;
+
         int min_doc_ID = posting_lists[0]->doc_ID;
         int max_doc_ID = posting_lists[0]->doc_ID;
 
         for (int i = 1; i < num_keys; i++) {
+            if (posting_lists[i] == NULL) return;
+
             if (posting_lists[i]->doc_ID < min_doc_ID) {
                 min_doc_ID = posting_lists[i]->doc_ID;
             }
@@ -57,6 +61,8 @@ void conjunctive_query(node *root, char **map, int key, char **searchKeys, int n
             print_doc(map, key, min_doc_ID);
             //print_document(map, min_doc_ID, key, rank);
             for (int i = 0; i < num_keys; i++) {
+                if (posting_lists[i] == NULL) return;
+
                 posting_lists[i] = posting_lists[i]->next;
                 if (posting_lists[i] == NULL) return;
             }
